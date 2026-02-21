@@ -13,3 +13,11 @@
 ## 2026-02-21 - [Script Portability]
 **Learning:** `#!/usr/bin/env bash` is standard but can fail if `env` is not in its expected path or if the user invokes the script with `sh`. A robust re-exec block ensures the script always runs in its intended shell.
 **Action:** Use a `#!/bin/sh` shebang with a Bash re-exec block for maximum portability of Bash scripts.
+
+## 2026-02-21 - [Package Optimization]
+**Learning:** Using `--no-install-recommends` with `apt install` significantly reduces the number of packages installed, saving both bandwidth and disk space, especially on server systems where GUI-related or optional dependencies are often pulled in by default.
+**Action:** Always use `--no-install-recommends` for server provisioning scripts.
+
+## 2026-02-21 - [Log Monitoring Efficiency]
+**Learning:** On modern systemd-based Linux distributions (like Debian 12/13), the `systemd` backend for Fail2Ban is much more efficient than polling log files, as it uses the `sd-journal` API.
+**Action:** Configure Fail2Ban to use `backend = systemd` on supported systems.

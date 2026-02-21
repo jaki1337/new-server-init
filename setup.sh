@@ -268,7 +268,7 @@ log_success "System updated successfully"
 #-------------------------------------------------------------------------------
 log_header "DEPENDENCY INSTALLATION"
 log_step "Installing base tools & security packages..."
-(apt install -y \
+(apt install -y --no-install-recommends \
     curl ca-certificates gnupg lsb-release \
     build-essential git \
     ufw fail2ban \
@@ -300,7 +300,7 @@ if ! command -v docker &>/dev/null; then
         tee /etc/apt/sources.list.d/docker.list > /dev/null
     
     apt update -y
-    apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin) > /dev/null 2>&1 &
+    apt install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin) > /dev/null 2>&1 &
     show_spinner $!
     
     systemctl enable docker > /dev/null 2>&1
@@ -317,12 +317,13 @@ log_header "NODE ENVIRONMENT"
 if ! command -v node &>/dev/null; then
     log_step "Installing Node.js 22..."
     (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-    apt install -y nodejs) > /dev/null 2>&1 &
+    apt install -y --no-install-recommends nodejs) > /dev/null 2>&1 &
     show_spinner $!
 fi
 
 log_step "Enabling Corepack & pnpm..."
 corepack enable
+apt-get clean
 corepack prepare pnpm@latest --activate 2>/dev/null || true
 log_success "Node.js environment ready"
 
@@ -341,6 +342,8 @@ if [ -f "$SSHD_CONFIG" ]; then
     sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSHD_CONFIG"
     sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 300/' "$SSHD_CONFIG"
     sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 2/' "$SSHD_CONFIG"
+    # Bolt: Disable DNS reverse lookups for faster login
+    sed -i 's/^#\?UseDNS.*/UseDNS no/' "$SSHD_CONFIG"
     
     systemctl restart ssh
     log_success "SSH configuration secured"
@@ -368,6 +371,8 @@ log_header "INTRUSION PREVENTION"
 log_step "Configuring Fail2Ban jails..."
 cat >/etc/fail2ban/jail.local <<'EOF'
 [DEFAULT]
+# Bolt: Use systemd backend for better performance on Debian 12/13
+backend = systemd
 bantime = 1h
 findtime = 10m
 maxretry = 3
@@ -377,7 +382,6 @@ ignoreip = 127.0.0.1/8 ::1
 enabled = true
 port = ssh
 filter = sshd
-logpath = /var/log/auth.log
 maxretry = 3
 bantime = 2h
 EOF

@@ -1,4 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/sh
+# Ensure script is running with Bash (Bolt: System Portability)
+if [ -z "${BASH_VERSION:-}" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        exec bash "$0" "$@"
+    elif [ -x /bin/bash ]; then
+        exec /bin/bash "$0" "$@"
+    elif [ -x /usr/bin/bash ]; then
+        exec /usr/bin/bash "$0" "$@"
+    else
+        echo "Error: Bash is required but not found." >&2
+        exit 1
+    fi
+fi
+
 #===============================================================================
 #  Universal Server Setup Script for Debian 12/13
 #  
@@ -18,8 +32,16 @@ set -euo pipefail
 #-------------------------------------------------------------------------------
 # Configuration
 #-------------------------------------------------------------------------------
-SWAP_SIZE="2G"
+# Calculate SWAP size based on RAM (Bolt: Efficiency & Portability)
+TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo 0)
+if [ "$TOTAL_RAM_KB" -le 2097152 ]; then # <= 2GB RAM
+    SWAP_SIZE="2G"
+else
+    SWAP_SIZE="4G"
+fi
+
 DEPLOY_DIR="/var/www"
+mkdir -p "$DEPLOY_DIR"
 DOCKER_NETWORK="proxy-net"
 
 #-------------------------------------------------------------------------------

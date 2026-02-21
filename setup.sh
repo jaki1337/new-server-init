@@ -198,6 +198,21 @@ echo ""
 #-------------------------------------------------------------------------------
 log_header "DEPLOYMENT CONFIGURATION"
 
+echo -e "  ${NEON_CYAN}Select Deployment Path:${RESET}"
+echo -e "  ${NEON_PURPLE}1)${RESET} Initialize GitHub repository & deploy (Full Stack)"
+echo -e "  ${NEON_PURPLE}2)${RESET} Server optimization only (Hardening & Base Tools)"
+echo -e "  ${NEON_PURPLE}3)${RESET} Exit"
+echo ""
+read -rp "$(echo -e "  ${NEON_CYAN}[?] Enter choice [1-3]${RESET}: ")" CHOICE
+
+case $CHOICE in
+    1) DEPLOY_MODE="FULL" ;;
+    2) DEPLOY_MODE="OPTIMIZE" ;;
+    *) log_info "Exiting..."; exit 0 ;;
+esac
+
+echo ""
+
 DEPLOY_GIT="n"
 GIT_URL=""
 GIT_TOKEN=""
@@ -212,7 +227,7 @@ DOCKHAND_DOMAIN=""
 POSTGRES_PASSWORD=""
 REDIS_PASSWORD=""
 
-if ask_yes_no "Do you want to deploy a Git repository?" "n"; then
+if [ "$DEPLOY_MODE" = "FULL" ]; then
     DEPLOY_GIT="y"
     
     GIT_URL=$(ask_input "Git repository URL (e.g., https://github.com/user/repo.git)")
@@ -288,44 +303,49 @@ log_success "Base packages & Audit tools installed"
 #-------------------------------------------------------------------------------
 # Docker Installation
 #-------------------------------------------------------------------------------
-log_header "DOCKER RUNTIME"
-if ! command -v docker &>/dev/null; then
-    log_step "Installing Docker Engine & Compose..."
-    
-    (install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-    chmod a+r /etc/apt/keyrings/docker.asc
-    
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-        tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
-    apt update -y
-    apt install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin) > /dev/null 2>&1 &
-    show_spinner $!
-    
-    systemctl enable docker > /dev/null 2>&1
-    systemctl start docker > /dev/null 2>&1
-    log_success "Docker installed & active"
-else
-    log_info "Docker is already installed"
+if [ "$DEPLOY_MODE" = "FULL" ]; then
+    log_header "DOCKER RUNTIME"
+    if ! command -v docker &>/dev/null; then
+        log_step "Installing Docker Engine & Compose..."
+
+        (install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        apt update -y
+        apt install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin) > /dev/null 2>&1 &
+        show_spinner $!
+
+        systemctl enable docker > /dev/null 2>&1
+        systemctl start docker > /dev/null 2>&1
+        log_success "Docker installed & active"
+    else
+        log_info "Docker is already installed"
+    fi
 fi
 
 #-------------------------------------------------------------------------------
 # Node.js 22 + pnpm (for local builds if needed)
 #-------------------------------------------------------------------------------
-log_header "NODE ENVIRONMENT"
-if ! command -v node &>/dev/null; then
-    log_step "Installing Node.js 22..."
-    (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-    apt install -y --no-install-recommends nodejs) > /dev/null 2>&1 &
-    show_spinner $!
+if [ "$DEPLOY_MODE" = "FULL" ]; then
+    log_header "NODE ENVIRONMENT"
+    if ! command -v node &>/dev/null; then
+        log_step "Installing Node.js 22..."
+        (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+        apt install -y --no-install-recommends nodejs) > /dev/null 2>&1 &
+        show_spinner $!
+    fi
+
+    log_step "Enabling Corepack & pnpm..."
+    corepack enable
+    corepack prepare pnpm@latest --activate 2>/dev/null || true
+    log_success "Node.js environment ready"
 fi
 
-log_step "Enabling Corepack & pnpm..."
-corepack enable
 apt-get clean
-corepack prepare pnpm@latest --activate 2>/dev/null || true
-log_success "Node.js environment ready"
 
 #-------------------------------------------------------------------------------
 # SSH Configuration
@@ -428,20 +448,24 @@ kernel.sysrq = 0
 # Network Core
 net.core.somaxconn = 65535
 net.core.netdev_max_backlog = 65535
-net.core.rmem_max = 6291456
-net.core.wmem_max = 6291456
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.optmem_max = 25165824
 net.core.default_qdisc = fq
 
 # TCP Optimization
-net.ipv4.tcp_max_syn_backlog = 4096
+net.ipv4.tcp_max_syn_backlog = 65535
 net.ipv4.tcp_tw_reuse = 1
 net.ipv4.tcp_fin_timeout = 10
 net.ipv4.tcp_keepalive_time = 600
 net.ipv4.tcp_fastopen = 3
 net.ipv4.tcp_syncookies = 1
-net.ipv4.tcp_rmem = 4096 87380 6291456
-net.ipv4.tcp_wmem = 4096 87380 6291456
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 87380 16777216
 net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_mtu_probing = 1
+net.ipv4.tcp_notsent_lowat = 16384
 net.ipv4.tcp_no_metrics_save = 1
 net.ipv4.tcp_window_scaling = 1
 

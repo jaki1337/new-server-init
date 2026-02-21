@@ -21,3 +21,7 @@
 ## 2026-02-21 - [Log Monitoring Efficiency]
 **Learning:** On modern systemd-based Linux distributions (like Debian 12/13), the `systemd` backend for Fail2Ban is much more efficient than polling log files, as it uses the `sd-journal` API.
 **Action:** Configure Fail2Ban to use `backend = systemd` on supported systems.
+
+## 2026-02-21 - [Modular Provisioning for Efficiency]
+**Learning:** Forcing users to install heavy runtimes (Docker, Node.js) when they only need system hardening is an efficiency anti-pattern. Providing a choice to "Optimize Only" significantly reduces execution time, disk footprint, and background resource usage on servers that don't need those specific stacks.
+**Action:** Always provide modular execution paths in provisioning scripts to respect different server roles and minimize unnecessary software bloat.
